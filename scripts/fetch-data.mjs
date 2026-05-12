@@ -136,6 +136,19 @@ function analyze(rows) {
   }
   const avgPermAthAgeDays = permAgeCount ? permAgeSum / permAgeCount : null
 
+  // "Today marker" — the most recent ATH whose price was at-or-below today's
+  // close. Maps today's price level onto the time axis via the ATH ladder:
+  // at-ATH stocks land on today's ATH (right edge); a stock 50% off ATH lands
+  // on the date of the older peak that today's price last exceeded. Avoids
+  // the noise of "yesterday was 0.3% higher" that a raw close walk-back gives.
+  let currentPriceDate = dates[athIndices[0]]
+  for (let k = athIndices.length - 1; k >= 0; k--) {
+    if (closes[athIndices[k]] <= lastClose) {
+      currentPriceDate = dates[athIndices[k]]
+      break
+    }
+  }
+
   return {
     dates,
     closes,
@@ -156,6 +169,7 @@ function analyze(rows) {
       athClose,
       lastClose,
       pctOffAth,
+      currentPriceDate,
       recoveryDaysMean: recoveryMean != null ? Math.round(recoveryMean) : null,
       recoveredAthCount: recoveryDays.length,
     },

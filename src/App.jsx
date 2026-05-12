@@ -324,11 +324,20 @@ function Row({ ticker, rank, chartProbeRef }) {
                 strokeWidth={isActive ? 3.4 : l.perm ? 3 : 1.4} />
             )
           })}
-          <polygon className="now-flag"
-            points={`${xOfFrac(1) - 5},0 ${xOfFrac(1) + 5},0 ${xOfFrac(1)},7`} />
-          <line className="now-line"
-            x1={xOfFrac(1)} x2={xOfFrac(1)}
-            y1={0} y2={H} />
+          {(() => {
+            const markerDate = ticker.stats.currentPriceDate ?? ticker.stats.lastDate
+            const markerFrac = Math.max(0, Math.min(1, dateToAxis(markerDate)))
+            const nx = xOfFrac(markerFrac)
+            return (
+              <>
+                <polygon className="now-flag"
+                  points={`${nx - 5},0 ${nx + 5},0 ${nx},7`} />
+                <line className="now-line"
+                  x1={nx} x2={nx}
+                  y1={0} y2={H} />
+              </>
+            )
+          })()}
           {hover && active && (
             <line stroke={COLOR.ink} strokeOpacity="0.55" strokeWidth="0.7"
               x1={xOfDate(active.date)} x2={xOfDate(active.date)} y1={4} y2={H - 4}
