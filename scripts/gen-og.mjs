@@ -26,6 +26,7 @@ const RULE     = 'rgba(26, 24, 20, 0.18)'
 
 const COLOR = {
   victory:  '#2f7a3b',
+  short:    '#5aa14a',
   safe:     '#6c7c2b',
   meh:      '#b39120',
   scary:    '#c66a2b',
@@ -126,11 +127,12 @@ const svg = `
 
   <defs>
     <linearGradient id="ramp" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0%"   stop-color="${COLOR.victory}"/>
-      <stop offset="25%"  stop-color="${COLOR.safe}"/>
-      <stop offset="50%"  stop-color="${COLOR.meh}"/>
-      <stop offset="75%"  stop-color="${COLOR.scary}"/>
-      <stop offset="100%" stop-color="${COLOR.disaster}"/>
+      <stop offset="0%"    stop-color="${COLOR.victory}"/>
+      <stop offset="20%"   stop-color="${COLOR.short}"/>
+      <stop offset="40%"   stop-color="${COLOR.safe}"/>
+      <stop offset="60%"   stop-color="${COLOR.meh}"/>
+      <stop offset="80%"   stop-color="${COLOR.scary}"/>
+      <stop offset="100%"  stop-color="${COLOR.disaster}"/>
     </linearGradient>
   </defs>
   <!-- Legend strip under the card -->
@@ -139,7 +141,7 @@ const svg = `
     <text x="0" y="30" font-family="ui-monospace, 'SF Mono', Menlo, monospace"
       font-size="12" fill="${INK_SOFT}">permanent ATH</text>
     <text x="460" y="30" font-family="ui-monospace, 'SF Mono', Menlo, monospace"
-      font-size="12" fill="${INK_SOFT}" text-anchor="end">a decade+ underwater</text>
+      font-size="12" fill="${INK_SOFT}" text-anchor="end">2+ years underwater</text>
   </g>
 </svg>`
 

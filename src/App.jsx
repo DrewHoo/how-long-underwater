@@ -164,10 +164,11 @@ function Leaderboard({ tickers, generatedAt }) {
 function Legend() {
   const items = [
     [COLOR.victory,  'permanent — never undercut'],
-    [COLOR.safe,     'brief blip below'],
-    [COLOR.meh,      'months at-or-below'],
-    [COLOR.scary,    'years at-or-below'],
-    [COLOR.disaster, 'a decade+ underwater'],
+    [COLOR.short,    '≤ 3 months at-or-below'],
+    [COLOR.safe,     '3–6 months'],
+    [COLOR.meh,      '6–12 months'],
+    [COLOR.scary,    '1–2 years'],
+    [COLOR.disaster, '2+ years underwater'],
   ]
   return (
     <div className="legend">
@@ -359,7 +360,8 @@ function Methodology({ generatedAt, tickerCount }) {
           ATHs before the window are hidden; rows for younger tickers (BTC, ARM, PLTR) just start later.
         </li>
         <li>
-          Color encodes how many trading days the close stayed at-or-below the ATH afterward — log-bucketed so a one-week dip stays olive but a decade underwater glows red.
+          Color encodes how many trading days the close stayed at-or-below the ATH afterward, in linear bins:
+          ≤3 months stays green, 3–6 olive, 6–12 yellow, 1–2 years orange, 2+ years red.
         </li>
         <li>
           Only <em>closes</em> are checked, not intraday lows.

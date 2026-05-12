@@ -110,28 +110,37 @@ export function logLabels(t) {
 // ---------------------------------------------------------------
 // Buyer-perspective color encoding — the C3 / time-underwater scheme.
 //
-// Permanent ATHs are pure win (green). Everything else is colored by
-// how many trading days the price spent at-or-below: a few days is a
-// blip (olive), a year-plus is the kind of ATH that left people
-// underwater for half a career (deep red).
+// Permanent ATHs are pure win (deep green). Non-permanent ATHs are
+// linearly bucketed by trading days at-or-below the ATH price:
+//   ≤  3 months → light green   (still pretty harmless)
+//   3–6 months  → olive
+//   6–12 months → yellow
+//   1–2 years   → burnt orange
+//   2+ years    → red
+// ~252 trading days per calendar year is the conversion.
 // ---------------------------------------------------------------
 export const COLOR = {
-  victory:  '#2f7a3b',
-  safe:     '#6c7c2b',
-  meh:      '#b39120',
-  scary:    '#c66a2b',
-  disaster: '#e63b2e',
+  victory:  '#2f7a3b',   // permanent ATH
+  short:    '#5aa14a',   // ≤ 3 months
+  safe:     '#6c7c2b',   // 3–6 months
+  meh:      '#b39120',   // 6–12 months
+  scary:    '#c66a2b',   // 1–2 years
+  disaster: '#e63b2e',   // 2+ years
   ink:      '#1a1814',
   bg:       '#f1ead6',
 }
 
+const D_3M = 63
+const D_6M = 126
+const D_1Y = 252
+const D_2Y = 504
+
 export function colorByTime(level) {
   if (level.perm) return COLOR.victory
   const days = level.buyable
-  // ~10 years of trading days (2520) is the upper anchor of the log scale.
-  const t = Math.max(0, Math.min(1, Math.log10(1 + days) / Math.log10(2520)))
-  if (t < 0.33) return COLOR.safe
-  if (t < 0.55) return COLOR.meh
-  if (t < 0.80) return COLOR.scary
+  if (days <= D_3M) return COLOR.short
+  if (days <= D_6M) return COLOR.safe
+  if (days <= D_1Y) return COLOR.meh
+  if (days <= D_2Y) return COLOR.scary
   return COLOR.disaster
 }
