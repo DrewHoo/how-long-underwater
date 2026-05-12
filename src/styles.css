@@ -141,7 +141,7 @@ main { max-width: 1320px; margin: 0 auto; padding: 36px 32px 80px; position: rel
 }
 .row {
   display: grid;
-  grid-template-columns: 44px 156px minmax(0, 1fr) 200px 110px;
+  grid-template-columns: 44px 156px minmax(0, 1fr) 220px;
   align-items: center;
   gap: 14px;
   padding: 8px 4px;
@@ -176,9 +176,6 @@ main { max-width: 1320px; margin: 0 auto; padding: 36px 32px 80px; position: rel
 }
 .pct-num { font-weight: 700; color: var(--ink); font-size: 12px; }
 .pct-cap { margin-top: 3px; }
-
-.row-off { text-align: right; font-size: 11px; }
-.off-at { color: var(--red); font-weight: 700; }
 
 /* ─── Tooltip ──────────────────────────────────────────────── */
 .tip {
@@ -275,8 +272,7 @@ main { max-width: 1320px; margin: 0 auto; padding: 36px 32px 80px; position: rel
     grid-template-columns: 28px minmax(72px, 96px) minmax(0, 1fr);
     grid-template-areas:
       'rank name chart'
-      '.    pct  pct'
-      '.    off  off';
+      '.    pct  pct';
     row-gap: 4px;
     gap: 10px;
     padding: 10px 2px;
@@ -293,7 +289,6 @@ main { max-width: 1320px; margin: 0 auto; padding: 36px 32px 80px; position: rel
   .row-chart { grid-area: chart; min-width: 0; }
   .row-pct { grid-area: pct; }
   .pct-track { width: 100%; max-width: 220px; }
-  .row-off { grid-area: off; text-align: left; }
 
   #comments { padding: 24px 14px 48px; }
 }

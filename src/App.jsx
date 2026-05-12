@@ -294,7 +294,6 @@ function Row({ ticker, rank, chartProbeRef }) {
   const avgYears = avgDays != null ? avgDays / 365.25 : null
   const permCount = ticker.stats.permAthCount
   const ageBarPct = avgYears != null ? Math.min(100, (avgYears / AXIS_YEARS) * 100) : 0
-  const off = ticker.stats.pctOffAth * 100
 
   return (
     <li className="row">
@@ -363,11 +362,6 @@ function Row({ ticker, rank, chartProbeRef }) {
             ? `avg age of ${permCount} unbroken ATH${permCount === 1 ? '' : 's'}`
             : 'no unbroken ATHs'}
         </div>
-      </div>
-      <div className="row-off">
-        {off < 0.5
-          ? <span className="off-at">at ATH</span>
-          : <span>−{off.toFixed(1)}% off</span>}
       </div>
     </li>
   )
