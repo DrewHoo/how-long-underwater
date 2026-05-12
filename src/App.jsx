@@ -1,8 +1,31 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
   athLevels, colorByTime, COLOR,
-  AXIS_START_MS, AXIS_END_MS, AXIS_YEARS, dateToAxis, decadeTicks,
+  AXIS_END_MS, AXIS_YEARS, dateToAxis,
 } from './chart-utils.js'
+
+function formatTimeSince(dateStr) {
+  const ms = AXIS_END_MS - Date.parse(dateStr)
+  const days = ms / 86400000
+  if (days < 1) return 'today'
+  if (days < 30) return `${Math.round(days)} days ago`
+  const months = days / 30.44
+  if (months < 18) return `${Math.round(months)} months ago`
+  const years = days / 365.25
+  return `${years.toFixed(1)} years ago`
+}
+
+function formatThousandBuy(level) {
+  const rel = level.currentRel
+  if (!Number.isFinite(rel) || rel <= 0) return null
+  const value = 1000 * rel
+  const pct = (rel - 1) * 100
+  const dollars = `$${Math.round(value).toLocaleString('en-US')}`
+  const deltaSign = pct >= 0 ? '+' : '−'
+  const deltaPct = Math.abs(pct)
+  const delta = `${deltaSign}${deltaPct < 10 ? deltaPct.toFixed(1) : Math.round(deltaPct)}%`
+  return { dollars, delta, isLoss: pct < 0 }
+}
 
 const BASE = import.meta.env.BASE_URL
 
@@ -140,7 +163,7 @@ function Leaderboard({ tickers, generatedAt }) {
           {[
             ['featured', 'featured'],
             ['settledPctUnbroken', '% unbroken'],
-            ['permAthCount', 'still standing'],
+            ['permAthCount', 'most ATHs never undercut'],
             ['pctOffAth', 'off ATH'],
           ].map(([v, l]) => (
             <button key={v} className={`seg-btn ${sortKey === v ? 'is-active' : ''}`} onClick={() => setSortKey(v)}>
@@ -182,7 +205,8 @@ function Legend() {
       ))}
       <span className="legend-item">
         <svg width="20" height="14" aria-hidden="true">
-          <line x1="10" y1="0" x2="10" y2="14" stroke={COLOR.ink} strokeDasharray="3 3" strokeWidth="1.2" />
+          <polygon points="6,0 14,0 10,4" fill={COLOR.disaster} />
+          <line x1="10" y1="0" x2="10" y2="14" stroke={COLOR.disaster} strokeDasharray="3 2" strokeWidth="2" />
         </svg>
         today
       </span>
@@ -194,8 +218,6 @@ function Legend() {
 // One leaderboard row: rank + symbol/name + scrubbable barcode +
 // permanent-share bar + drawdown indicator.
 // ─────────────────────────────────────────────────────────────
-const DECADES = decadeTicks()
-
 function Row({ ticker, rank }) {
   const levels = useMemo(
     () => athLevels(ticker).filter(l => dateToAxis(l.date) >= 0),
@@ -251,26 +273,23 @@ function Row({ ticker, rank }) {
           onTouchEnd={() => setHover(null)}
         >
           <line className="axis-line" x1={left - 4} x2={right + 4} y1={yMid} y2={yMid} />
-          {DECADES.map((d) => (
-            <line key={d.year} className="crosshatch"
-              x1={xOfFrac(d.pos)} x2={xOfFrac(d.pos)}
-              y1={yMid - 8} y2={yMid + 8} />
-          ))}
           {levels.map((l, i) => {
             const isActive = active && active.idx === l.idx
             const stroke = colorByTime(l)
-            const half = l.perm ? 20 : 14
+            const half = l.perm ? 26 : 14
             return (
               <line key={i}
                 x1={xOfDate(l.date)} x2={xOfDate(l.date)}
                 y1={yMid - half} y2={yMid + half}
                 stroke={stroke}
-                strokeWidth={isActive ? 3 : l.perm ? 2.4 : 1.4} />
+                strokeWidth={isActive ? 3.4 : l.perm ? 3 : 1.4} />
             )
           })}
+          <polygon className="now-flag"
+            points={`${xOfFrac(1) - 5},0 ${xOfFrac(1) + 5},0 ${xOfFrac(1)},7`} />
           <line className="now-line"
             x1={xOfFrac(1)} x2={xOfFrac(1)}
-            y1={yMid - 16} y2={yMid + 16} />
+            y1={0} y2={H} />
           {hover && active && (
             <line stroke={COLOR.ink} strokeOpacity="0.55" strokeWidth="0.7"
               x1={xOfDate(active.date)} x2={xOfDate(active.date)} y1={4} y2={H - 4}
@@ -304,18 +323,18 @@ function Row({ ticker, rank }) {
 
 function Tooltip({ ticker, level, x, y, side }) {
   if (!level) return null
-  const W = 220
+  const W = 230
   const offset = 12
   const leftPx = side === 'right' ? x + offset : x - W - offset
   const c = colorByTime(level)
   const yrs = level.buyable / 252
+  const buy = formatThousandBuy(level)
   let detail
   if (level.perm) {
     detail = (
-      <>
-        <div className="t-row t-row--big" style={{ color: c }}>permanent ATH — never undercut</div>
-        <div className="t-row t-row--sub">a buyer here got in at the floor.</div>
-      </>
+      <div className="t-row t-row--big" style={{ color: c }}>
+        not yet undercut — {formatTimeSince(level.date)}
+      </div>
     )
   } else {
     detail = (
@@ -337,6 +356,11 @@ function Tooltip({ ticker, level, x, y, side }) {
         ${level.price.toFixed(2)} · {(level.pct * 100).toFixed(1)}% of peak
       </div>
       {detail}
+      {buy && (
+        <div className={`t-row t-row--buy ${buy.isLoss ? 'is-loss' : 'is-gain'}`}>
+          $1,000 then → <strong>{buy.dollars}</strong> today ({buy.delta})
+        </div>
+      )}
     </div>
   )
 }

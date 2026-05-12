@@ -47,20 +47,6 @@ export function dateToAxis(dateStr) {
   return (t - AXIS_START_MS) / (AXIS_END_MS - AXIS_START_MS)
 }
 
-// Decade boundaries (Jan 1 of each multiple of 10) within the visible window.
-export function decadeTicks() {
-  const startYear = new Date(AXIS_START_MS).getUTCFullYear()
-  const endYear = new Date(AXIS_END_MS).getUTCFullYear()
-  const out = []
-  for (let y = Math.ceil(startYear / 10) * 10; y <= endYear; y += 10) {
-    out.push({
-      year: y,
-      pos: (Date.UTC(y, 0, 1) - AXIS_START_MS) / (AXIS_END_MS - AXIS_START_MS),
-    })
-  }
-  return out
-}
-
 // ---------------------------------------------------------------
 // Per-ticker log price axis — kept for the OG image and any future
 // alt view. Not used by the live row chart anymore.
