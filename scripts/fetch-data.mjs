@@ -73,17 +73,22 @@ function analyze(rows) {
   }
 
   const lastClose = closes[n - 1]
+  const lastTimeMs = Date.parse(dates[n - 1])
   const athIndices = []
   const athRecoveryDays = []
   const athBuyableDays = []
-  const athMaxDD = []        // NEW — worst post-ATH drawdown (0..1)
-  const athCurrentRel = []   // NEW — lastClose / athPrice
+  const athMaxDD = []          // worst post-ATH drawdown (0..1)
+  const athCurrentRel = []     // lastClose / athPrice
+  const athAnnualReturn = []   // CAGR from buying at this ATH to today (null if <0.5y)
 
   for (let i = 0; i < n; i++) {
     if (!isAth[i]) continue
     athIndices.push(i)
     const cap = closes[i]
-    athCurrentRel.push(lastClose / cap)
+    const rel = lastClose / cap
+    athCurrentRel.push(rel)
+    const years = (lastTimeMs - Date.parse(dates[i])) / (365.25 * 86400000)
+    athAnnualReturn.push((years >= 0.5 && rel > 0) ? Math.pow(rel, 1 / years) - 1 : null)
 
     if (isPermanentFloor[i]) {
       athRecoveryDays.push(null)
@@ -118,18 +123,18 @@ function analyze(rows) {
   const athClose = closes[athIndices[athCount - 1]]
   const pctOffAth = athClose ? (athClose - lastClose) / athClose : 0
 
-  // Recency-corrected "still standing" metric.
-  const SETTLE_DAYS = 365
-  const lastTime = new Date(dates[n - 1]).getTime()
-  let settledAthCount = 0
-  let settledPermAthCount = 0
+  // Average age (in trading-day equivalents, but we just use calendar days)
+  // of the still-unbroken ATHs. Older = the ticker's permanent peaks have
+  // genuinely endured, not just recently-set ones. Less recency-biased than
+  // settledPctUnbroken.
+  let permAgeSum = 0
+  let permAgeCount = 0
   for (let k = 0; k < athIndices.length; k++) {
-    const i = athIndices[k]
-    const ageMs = lastTime - new Date(dates[i]).getTime()
-    if (ageMs / 86400000 < SETTLE_DAYS) continue
-    settledAthCount++
-    if (athRecoveryDays[k] == null) settledPermAthCount++
+    if (athRecoveryDays[k] != null) continue
+    permAgeSum += (lastTimeMs - Date.parse(dates[athIndices[k]])) / 86400000
+    permAgeCount++
   }
+  const avgPermAthAgeDays = permAgeCount ? permAgeSum / permAgeCount : null
 
   return {
     dates,
@@ -139,6 +144,7 @@ function analyze(rows) {
     athBuyableDays,
     athMaxDD,
     athCurrentRel,
+    athAnnualReturn,
     stats: {
       firstDate: dates[0],
       lastDate: dates[n - 1],
@@ -146,9 +152,7 @@ function analyze(rows) {
       athCount,
       permAthCount,
       pctAthsThatWerePermanent: athCount ? permAthCount / athCount : 0,
-      settledAthCount,
-      settledPermAthCount,
-      settledPctUnbroken: settledAthCount ? settledPermAthCount / settledAthCount : null,
+      avgPermAthAgeDays,
       athClose,
       lastClose,
       pctOffAth,
@@ -177,6 +181,7 @@ async function processOne(ticker) {
     athBuyable: a.athBuyableDays,
     athMaxDD: a.athMaxDD,
     athCurrentRel: a.athCurrentRel,
+    athAnnualReturn: a.athAnnualReturn,
     stats: a.stats,
   }
   await writeFile(
@@ -189,8 +194,7 @@ async function processOne(ticker) {
     lastDate: a.stats.lastDate,
     athCount: a.stats.athCount,
     permAthCount: a.stats.permAthCount,
-    pctAthsThatWerePermanent: a.stats.pctAthsThatWerePermanent,
-    settledPctUnbroken: a.stats.settledPctUnbroken,
+    avgPermAthAgeDays: a.stats.avgPermAthAgeDays,
     pctOffAth: a.stats.pctOffAth,
   }
 }

@@ -19,9 +19,15 @@ export function athLevels(t) {
       buyable: t.athBuyable[k],
       maxDD: t.athMaxDD ? t.athMaxDD[k] : 0,
       currentRel: t.athCurrentRel ? t.athCurrentRel[k] : 1,
+      annual: t.athAnnualReturn ? t.athAnnualReturn[k] : null,
     }
   })
 }
+
+// The row SVG uses an inset (12 of 840 viewBox units) on each side so the
+// axis sits inside the container edges. Both the chart row and the
+// background timeline need this fraction to line up.
+export const AXIS_INSET_FRAC = 12 / 840
 
 export function nowPct(t) {
   return t.stats.lastClose / t.stats.athClose

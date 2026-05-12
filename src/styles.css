@@ -23,7 +23,46 @@ body {
     url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.10  0 0 0 0 0.09  0 0 0 0 0.07  0 0 0 0.06 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.45'/></svg>");
 }
 
-main { max-width: 1320px; margin: 0 auto; padding: 36px 32px 80px; }
+main { max-width: 1320px; margin: 0 auto; padding: 36px 32px 80px; position: relative; z-index: 1; }
+
+/* ─── Background timeline (fixed, behind content) ──────────── */
+.bg-timeline {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+.bg-timeline-mark {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  border-left: 1px dashed rgba(26, 24, 20, 0.16);
+}
+.bg-timeline-label {
+  position: absolute;
+  top: 64px;
+  left: 0;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  font-family: var(--mono);
+  white-space: nowrap;
+}
+.bg-timeline-year {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: rgba(26, 24, 20, 0.45);
+}
+.bg-timeline-tag {
+  font-size: 8.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(26, 24, 20, 0.32);
+}
 
 /* ─── Masthead ─────────────────────────────────────────────── */
 .mast {

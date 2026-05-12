@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
   athLevels, colorByTime, COLOR,
-  AXIS_END_MS, AXIS_YEARS, dateToAxis,
+  AXIS_END_MS, AXIS_YEARS, AXIS_INSET_FRAC, dateToAxis,
 } from './chart-utils.js'
 
 function formatTimeSince(dateStr) {
@@ -25,6 +25,15 @@ function formatThousandBuy(level) {
   const deltaPct = Math.abs(pct)
   const delta = `${deltaSign}${deltaPct < 10 ? deltaPct.toFixed(1) : Math.round(deltaPct)}%`
   return { dollars, delta, isLoss: pct < 0 }
+}
+
+function formatAnnual(level) {
+  const a = level.annual
+  if (a == null || !Number.isFinite(a)) return null
+  const pct = a * 100
+  const sign = pct >= 0 ? '+' : '−'
+  const abs = Math.abs(pct)
+  return `${sign}${abs < 10 ? abs.toFixed(1) : Math.round(abs)}%/yr`
 }
 
 const BASE = import.meta.env.BASE_URL
@@ -108,9 +117,35 @@ function Mast() {
   )
 }
 
+// Sort key → sign multiplier. -1 = descending (default); 1 = ascending
+// (for "at ATH" we want the smallest pctOffAth first).
+const SORT_DIR = {
+  avgPermAthAgeDays: -1,
+  permAthCount: -1,
+  pctOffAth: 1,
+}
+
 function Leaderboard({ tickers, generatedAt }) {
   const [filter, setFilter] = useState('all')
   const [sortKey, setSortKey] = useState('featured')
+  const [chartEl, setChartEl] = useState(null)
+  const [chartBounds, setChartBounds] = useState(null)
+
+  useLayoutEffect(() => {
+    if (!chartEl) return
+    const measure = () => {
+      const r = chartEl.getBoundingClientRect()
+      setChartBounds({ left: r.left, width: r.width })
+    }
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(chartEl)
+    window.addEventListener('resize', measure)
+    return () => {
+      ro.disconnect()
+      window.removeEventListener('resize', measure)
+    }
+  }, [chartEl])
 
   const filtered = useMemo(() => {
     if (filter === 'all') return tickers
@@ -124,17 +159,18 @@ function Leaderboard({ tickers, generatedAt }) {
         const A = FEATURED_RANK.has(a.symbol) ? FEATURED_RANK.get(a.symbol) : Infinity
         const B = FEATURED_RANK.has(b.symbol) ? FEATURED_RANK.get(b.symbol) : Infinity
         if (A !== B) return A - B
-        // tie-breaker: % unbroken descending
-        return (b.stats.settledPctUnbroken ?? 0) - (a.stats.settledPctUnbroken ?? 0)
+        return (b.stats.avgPermAthAgeDays ?? 0) - (a.stats.avgPermAthAgeDays ?? 0)
       })
     } else {
-      arr.sort((a, b) => (b.stats[sortKey] ?? 0) - (a.stats[sortKey] ?? 0))
+      const dir = SORT_DIR[sortKey] ?? -1
+      arr.sort((a, b) => dir * ((a.stats[sortKey] ?? 0) - (b.stats[sortKey] ?? 0)))
     }
     return arr
   }, [filtered, sortKey])
 
   return (
     <main>
+      <BackgroundTimeline bounds={chartBounds} />
       <Mast />
 
       <section className="lede-row">
@@ -162,9 +198,9 @@ function Leaderboard({ tickers, generatedAt }) {
           <span className="seg-label">sort</span>
           {[
             ['featured', 'featured'],
-            ['settledPctUnbroken', '% unbroken'],
+            ['avgPermAthAgeDays', 'avg years unbroken'],
             ['permAthCount', 'most ATHs never undercut'],
-            ['pctOffAth', 'off ATH'],
+            ['pctOffAth', 'at ATH'],
           ].map(([v, l]) => (
             <button key={v} className={`seg-btn ${sortKey === v ? 'is-active' : ''}`} onClick={() => setSortKey(v)}>
               {l}
@@ -175,7 +211,8 @@ function Leaderboard({ tickers, generatedAt }) {
 
       <ol className="board">
         {sorted.map((t, i) => (
-          <Row key={t.symbol} ticker={t} rank={i + 1} />
+          <Row key={t.symbol} ticker={t} rank={i + 1}
+            chartProbeRef={i === 0 ? setChartEl : null} />
         ))}
       </ol>
 
@@ -218,14 +255,13 @@ function Legend() {
 // One leaderboard row: rank + symbol/name + scrubbable barcode +
 // permanent-share bar + drawdown indicator.
 // ─────────────────────────────────────────────────────────────
-function Row({ ticker, rank }) {
+function Row({ ticker, rank, chartProbeRef }) {
   const levels = useMemo(
     () => athLevels(ticker).filter(l => dateToAxis(l.date) >= 0),
     [ticker],
   )
   const [hover, setHover] = useState(null)
   const svgRef = useRef(null)
-  const wrapRef = useRef(null)
 
   const W = 840, H = 64
   const left = 12, right = W - 12
@@ -254,7 +290,10 @@ function Row({ ticker, rank }) {
   }
 
   const active = hover?.a || null
-  const pct = (ticker.stats.settledPctUnbroken ?? 0) * 100
+  const avgDays = ticker.stats.avgPermAthAgeDays
+  const avgYears = avgDays != null ? avgDays / 365.25 : null
+  const permCount = ticker.stats.permAthCount
+  const ageBarPct = avgYears != null ? Math.min(100, (avgYears / AXIS_YEARS) * 100) : 0
   const off = ticker.stats.pctOffAth * 100
 
   return (
@@ -264,7 +303,7 @@ function Row({ ticker, rank }) {
         <div className="row-symbol">{ticker.symbol}</div>
         <div className="row-fullname">{ticker.name}</div>
       </div>
-      <div ref={wrapRef} className="row-chart">
+      <div ref={chartProbeRef} className="row-chart">
         <svg ref={svgRef}
           width="100%" height={H} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none"
           onMouseMove={onMove}
@@ -306,11 +345,15 @@ function Row({ ticker, rank }) {
       <div className="row-pct">
         <div className="pct-bar">
           <div className="pct-track">
-            <div className="pct-fill" style={{ width: `${Math.min(100, pct)}%` }} />
+            <div className="pct-fill" style={{ width: `${ageBarPct}%` }} />
           </div>
-          <span className="pct-num">{pct.toFixed(0)}%</span>
+          <span className="pct-num">{avgYears != null ? `${avgYears.toFixed(1)}y` : '—'}</span>
         </div>
-        <div className="pct-cap">{ticker.stats.permAthCount} of {ticker.stats.athCount} ATHs never undercut</div>
+        <div className="pct-cap">
+          {permCount > 0
+            ? `avg age of ${permCount} unbroken ATH${permCount === 1 ? '' : 's'}`
+            : 'no unbroken ATHs'}
+        </div>
       </div>
       <div className="row-off">
         {off < 0.5
@@ -348,19 +391,49 @@ function Tooltip({ ticker, level, x, y, side }) {
       </>
     )
   }
+  const annual = formatAnnual(level)
   return (
     <div className="tip" style={{ top: y, left: leftPx, width: W }}>
       <div className="t-eyebrow">{ticker.symbol} ATH</div>
       <div className="t-date">{level.date}</div>
-      <div className="t-price">
-        ${level.price.toFixed(2)} · {(level.pct * 100).toFixed(1)}% of peak
-      </div>
+      <div className="t-price">${level.price.toFixed(2)}</div>
       {detail}
       {buy && (
         <div className={`t-row t-row--buy ${buy.isLoss ? 'is-loss' : 'is-gain'}`}>
           $1,000 then → <strong>{buy.dollars}</strong> today ({buy.delta})
+          {annual && <span className="t-row--annual"> · {annual} avg</span>}
         </div>
       )}
+    </div>
+  )
+}
+
+const BG_MARKS = [
+  { date: '2000-03-10', year: '2000', tag: 'dot-com' },
+  { date: '2008-09-15', year: '2008', tag: 'GFC' },
+  { date: '2020-03-23', year: '2020', tag: 'COVID' },
+]
+
+function BackgroundTimeline({ bounds }) {
+  if (!bounds) return null
+  const axisLeft = bounds.left + bounds.width * AXIS_INSET_FRAC
+  const axisRight = bounds.left + bounds.width * (1 - AXIS_INSET_FRAC)
+  const axisWidth = axisRight - axisLeft
+  return (
+    <div className="bg-timeline" aria-hidden>
+      {BG_MARKS.map(m => {
+        const t = dateToAxis(m.date)
+        if (t < 0 || t > 1) return null
+        const x = axisLeft + t * axisWidth
+        return (
+          <div key={m.year} className="bg-timeline-mark" style={{ left: `${x}px` }}>
+            <div className="bg-timeline-label">
+              <span className="bg-timeline-year">{m.year}</span>
+              <span className="bg-timeline-tag">{m.tag}</span>
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -377,7 +450,9 @@ function Methodology({ generatedAt, tickerCount }) {
         </li>
         <li>
           A close is a <strong>permanent floor</strong> if no later close was at-or-below it.
-          The "% unbroken" column corrects for recency: it only counts ATHs from at least a year ago.
+          The "avg years unbroken" column averages the age of those still-standing ATHs — so a
+          recent IPO whose every peak has held for two years scores lower than a name whose
+          peaks from a decade ago are still intact.
         </li>
         <li>
           Every row shares the same horizontal axis: the last {AXIS_YEARS} years, ending today (dashed vertical line).
