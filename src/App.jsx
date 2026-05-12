@@ -1,7 +1,22 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { athLevels, nowPct, pctToAxis, tickerFloor, colorByTime, COLOR } from './chart-utils.js'
+import {
+  athLevels, colorByTime, COLOR,
+  AXIS_START_MS, AXIS_END_MS, AXIS_YEARS, dateToAxis, decadeTicks,
+} from './chart-utils.js'
 
 const BASE = import.meta.env.BASE_URL
+
+// Default "featured" surface: long-history names that anchor the chart and
+// give scrollers an immediate read on the time-axis story. TSLA is in here
+// because its red, never-recovered ATH bar is funny.
+const FEATURED = [
+  'SPY', 'QQQ',
+  'NVDA', 'AAPL', 'MSFT', 'AMZN', 'GOOG', 'META',
+  'TSLA',
+  'SMH', 'SOXQ',
+  'BTC-USD',
+]
+const FEATURED_RANK = new Map(FEATURED.map((s, i) => [s, i]))
 
 // ─────────────────────────────────────────────────────────────
 // Top-level: loads index.json, then fetches every ticker's
@@ -36,8 +51,7 @@ export default function App() {
         }))
         if (cancelled) return
         const ok = results.filter(Boolean)
-        // Cache athLevels and tickerFloor up front by touching each ticker.
-        ok.forEach(t => { athLevels(t); tickerFloor(t) })
+        ok.forEach(t => { athLevels(t) })
         setTickers(ok)
       } catch (err) {
         if (!cancelled) setError(err.message)
@@ -73,7 +87,7 @@ function Mast() {
 
 function Leaderboard({ tickers, generatedAt }) {
   const [filter, setFilter] = useState('all')
-  const [sortKey, setSortKey] = useState('settledPctUnbroken')
+  const [sortKey, setSortKey] = useState('featured')
 
   const filtered = useMemo(() => {
     if (filter === 'all') return tickers
@@ -82,11 +96,17 @@ function Leaderboard({ tickers, generatedAt }) {
 
   const sorted = useMemo(() => {
     const arr = [...filtered]
-    arr.sort((a, b) => {
-      const A = a.stats[sortKey] ?? 0
-      const B = b.stats[sortKey] ?? 0
-      return B - A
-    })
+    if (sortKey === 'featured') {
+      arr.sort((a, b) => {
+        const A = FEATURED_RANK.has(a.symbol) ? FEATURED_RANK.get(a.symbol) : Infinity
+        const B = FEATURED_RANK.has(b.symbol) ? FEATURED_RANK.get(b.symbol) : Infinity
+        if (A !== B) return A - B
+        // tie-breaker: % unbroken descending
+        return (b.stats.settledPctUnbroken ?? 0) - (a.stats.settledPctUnbroken ?? 0)
+      })
+    } else {
+      arr.sort((a, b) => (b.stats[sortKey] ?? 0) - (a.stats[sortKey] ?? 0))
+    }
     return arr
   }, [filtered, sortKey])
 
@@ -96,9 +116,9 @@ function Leaderboard({ tickers, generatedAt }) {
 
       <section className="lede-row">
         <p className="lede">
-          Every closing-price all-time high in {tickers.length} tickers, on a per-ticker log axis.
+          Every closing-price all-time high in {tickers.length} tickers, plotted on a shared {AXIS_YEARS}-year timeline.
           Green ticks were never undercut — those are the buys-of-a-lifetime.
-          Red ticks left buyers underwater for years; the dot-com peaks should be obvious.
+          Red ticks left buyers underwater for years; the dot-com cluster around 2000 should be obvious.
           Tap or hover any row to scrub the ladder.
         </p>
         <Legend />
@@ -118,8 +138,9 @@ function Leaderboard({ tickers, generatedAt }) {
         <div className="seg seg--right">
           <span className="seg-label">sort</span>
           {[
+            ['featured', 'featured'],
             ['settledPctUnbroken', '% unbroken'],
-            ['permAthCount', 'stuck count'],
+            ['permAthCount', 'still standing'],
             ['pctOffAth', 'off ATH'],
           ].map(([v, l]) => (
             <button key={v} className={`seg-btn ${sortKey === v ? 'is-active' : ''}`} onClick={() => setSortKey(v)}>
@@ -159,8 +180,8 @@ function Legend() {
         </span>
       ))}
       <span className="legend-item">
-        <svg width="20" height="8" aria-hidden="true">
-          <line x1="0" y1="4" x2="20" y2="4" stroke={COLOR.ink} strokeDasharray="3 3" strokeWidth="1.2" />
+        <svg width="20" height="14" aria-hidden="true">
+          <line x1="10" y1="0" x2="10" y2="14" stroke={COLOR.ink} strokeDasharray="3 3" strokeWidth="1.2" />
         </svg>
         today
       </span>
@@ -172,8 +193,13 @@ function Legend() {
 // One leaderboard row: rank + symbol/name + scrubbable barcode +
 // permanent-share bar + drawdown indicator.
 // ─────────────────────────────────────────────────────────────
+const DECADES = decadeTicks()
+
 function Row({ ticker, rank }) {
-  const levels = useMemo(() => athLevels(ticker), [ticker])
+  const levels = useMemo(
+    () => athLevels(ticker).filter(l => dateToAxis(l.date) >= 0),
+    [ticker],
+  )
   const [hover, setHover] = useState(null)
   const svgRef = useRef(null)
   const wrapRef = useRef(null)
@@ -181,13 +207,14 @@ function Row({ ticker, rank }) {
   const W = 840, H = 64
   const left = 12, right = W - 12
   const yMid = H / 2
-  const xOf = (pct) => left + pctToAxis(ticker, pct) * (right - left)
+  const xOfFrac = (frac) => left + frac * (right - left)
+  const xOfDate = (dateStr) => xOfFrac(Math.max(0, Math.min(1, dateToAxis(dateStr))))
 
   function nearestByAxis(axisPos) {
     if (!levels.length) return null
-    let best = levels[0], bd = Math.abs(pctToAxis(ticker, best.pct) - axisPos)
+    let best = levels[0], bd = Math.abs(dateToAxis(best.date) - axisPos)
     for (let i = 1; i < levels.length; i++) {
-      const d = Math.abs(pctToAxis(ticker, levels[i].pct) - axisPos)
+      const d = Math.abs(dateToAxis(levels[i].date) - axisPos)
       if (d < bd) { bd = d; best = levels[i] }
     }
     return best
@@ -198,7 +225,8 @@ function Row({ ticker, rank }) {
     const px = e.clientX - rect.left
     const axisPos = Math.max(0, Math.min(1, px / rect.width))
     const a = nearestByAxis(axisPos)
-    const xLocal = pctToAxis(ticker, a.pct) * rect.width
+    if (!a) return
+    const xLocal = Math.max(0, Math.min(1, dateToAxis(a.date))) * rect.width
     setHover({ axisPos, xLocal, a })
   }
 
@@ -222,32 +250,33 @@ function Row({ ticker, rank }) {
           onTouchEnd={() => setHover(null)}
         >
           <line className="axis-line" x1={left - 4} x2={right + 4} y1={yMid} y2={yMid} />
-          {[0.1, 0.5].filter((p) => p >= tickerFloor(ticker)).map((p) => (
-            <line key={p} className="crosshatch" x1={xOf(p)} x2={xOf(p)} y1={yMid - 8} y2={yMid + 8} />
+          {DECADES.map((d) => (
+            <line key={d.year} className="crosshatch"
+              x1={xOfFrac(d.pos)} x2={xOfFrac(d.pos)}
+              y1={yMid - 8} y2={yMid + 8} />
           ))}
-          <line className="axis-tick" x1={xOf(1)} x2={xOf(1)} y1={yMid - 14} y2={yMid + 14} />
           {levels.map((l, i) => {
             const isActive = active && active.idx === l.idx
             const stroke = colorByTime(l)
             const half = l.perm ? 20 : 14
             return (
               <line key={i}
-                x1={xOf(l.pct)} x2={xOf(l.pct)}
+                x1={xOfDate(l.date)} x2={xOfDate(l.date)}
                 y1={yMid - half} y2={yMid + half}
                 stroke={stroke}
                 strokeWidth={isActive ? 3 : l.perm ? 2.4 : 1.4} />
             )
           })}
           <line className="now-line"
-            x1={xOf(nowPct(ticker))} x2={xOf(nowPct(ticker))}
+            x1={xOfFrac(1)} x2={xOfFrac(1)}
             y1={yMid - 16} y2={yMid + 16} />
-          {hover && (
+          {hover && active && (
             <line stroke={COLOR.ink} strokeOpacity="0.55" strokeWidth="0.7"
-              x1={xOf(active.pct)} x2={xOf(active.pct)} y1={4} y2={H - 4}
+              x1={xOfDate(active.date)} x2={xOfDate(active.date)} y1={4} y2={H - 4}
               strokeDasharray="2 3" />
           )}
         </svg>
-        {hover && (
+        {hover && active && (
           <Tooltip ticker={ticker} level={active}
             x={hover.xLocal}
             y={yMid}
@@ -326,8 +355,8 @@ function Methodology({ generatedAt, tickerCount }) {
           The "% unbroken" column corrects for recency: it only counts ATHs from at least a year ago.
         </li>
         <li>
-          Each row's horizontal axis is log-scaled from a per-ticker floor (just below the lowest ATH) up to the ticker's all-time-high close.
-          That keeps very-early ATHs from compressing into a single pixel near $0 while letting all-history names span the full row.
+          Every row shares the same horizontal axis: the last {AXIS_YEARS} years, ending today (dashed vertical line).
+          ATHs before the window are hidden; rows for younger tickers (BTC, ARM, PLTR) just start later.
         </li>
         <li>
           Color encodes how many trading days the close stayed at-or-below the ATH afterward — log-bucketed so a one-week dip stays olive but a decade underwater glows red.

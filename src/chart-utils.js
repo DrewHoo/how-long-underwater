@@ -28,12 +28,42 @@ export function nowPct(t) {
 }
 
 // ---------------------------------------------------------------
-// Per-ticker log axis.
+// Shared time axis — used by the row chart.
 //
-// We map raw price fractions through a log scale so ATHs don't pile up
-// at the top of the axis. Floor sits just below the ticker's lowest ATH
-// so a wide-history name like NVDA gets the full spread while a young
-// ETF like SOXQ still uses the full axis.
+// Every row plots ATHs at their date position on the same horizontal
+// span (default: the last 30 years). That makes the dot-com cluster,
+// '08, and the 2021 peaks line up visually across tickers.
+// ---------------------------------------------------------------
+export const AXIS_YEARS = 30
+export const AXIS_END_MS = Date.UTC(
+  new Date().getUTCFullYear(),
+  new Date().getUTCMonth(),
+  new Date().getUTCDate(),
+)
+export const AXIS_START_MS = AXIS_END_MS - AXIS_YEARS * 365.25 * 24 * 3600 * 1000
+
+export function dateToAxis(dateStr) {
+  const t = Date.parse(dateStr)
+  return (t - AXIS_START_MS) / (AXIS_END_MS - AXIS_START_MS)
+}
+
+// Decade boundaries (Jan 1 of each multiple of 10) within the visible window.
+export function decadeTicks() {
+  const startYear = new Date(AXIS_START_MS).getUTCFullYear()
+  const endYear = new Date(AXIS_END_MS).getUTCFullYear()
+  const out = []
+  for (let y = Math.ceil(startYear / 10) * 10; y <= endYear; y += 10) {
+    out.push({
+      year: y,
+      pos: (Date.UTC(y, 0, 1) - AXIS_START_MS) / (AXIS_END_MS - AXIS_START_MS),
+    })
+  }
+  return out
+}
+
+// ---------------------------------------------------------------
+// Per-ticker log price axis — kept for the OG image and any future
+// alt view. Not used by the live row chart anymore.
 // ---------------------------------------------------------------
 const _floorCache = new WeakMap()
 
