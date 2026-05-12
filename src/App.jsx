@@ -2,6 +2,7 @@ import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 're
 import {
   athLevels, colorByTime, COLOR,
   AXIS_END_MS, AXIS_YEARS, AXIS_INSET_FRAC, dateToAxis,
+  permEnduranceYears,
 } from './chart-utils.js'
 
 function formatTimeSince(dateStr) {
@@ -120,7 +121,6 @@ function Mast() {
 // Sort key → sign multiplier. -1 = descending (default); 1 = ascending
 // (for "at ATH" we want the smallest pctOffAth first).
 const SORT_DIR = {
-  avgPermAthAgeDays: -1,
   permAthCount: -1,
   pctOffAth: 1,
 }
@@ -159,14 +159,25 @@ function Leaderboard({ tickers, generatedAt }) {
         const A = FEATURED_RANK.has(a.symbol) ? FEATURED_RANK.get(a.symbol) : Infinity
         const B = FEATURED_RANK.has(b.symbol) ? FEATURED_RANK.get(b.symbol) : Infinity
         if (A !== B) return A - B
-        return (b.stats.avgPermAthAgeDays ?? 0) - (a.stats.avgPermAthAgeDays ?? 0)
+        return permEnduranceYears(b).totalYears - permEnduranceYears(a).totalYears
       })
+    } else if (sortKey === 'endurance') {
+      arr.sort((a, b) => permEnduranceYears(b).totalYears - permEnduranceYears(a).totalYears)
     } else {
       const dir = SORT_DIR[sortKey] ?? -1
       arr.sort((a, b) => dir * ((a.stats[sortKey] ?? 0) - (b.stats[sortKey] ?? 0)))
     }
     return arr
   }, [filtered, sortKey])
+
+  const enduranceMax = useMemo(() => {
+    let max = 0
+    for (const t of sorted) {
+      const e = permEnduranceYears(t).totalYears
+      if (e > max) max = e
+    }
+    return max
+  }, [sorted])
 
   return (
     <main>
@@ -198,7 +209,7 @@ function Leaderboard({ tickers, generatedAt }) {
           <span className="seg-label">sort</span>
           {[
             ['featured', 'featured'],
-            ['avgPermAthAgeDays', 'avg years unbroken'],
+            ['endurance', 'ATH endurance'],
             ['permAthCount', 'most ATHs never undercut'],
             ['pctOffAth', 'at ATH'],
           ].map(([v, l]) => (
@@ -212,7 +223,8 @@ function Leaderboard({ tickers, generatedAt }) {
       <ol className="board">
         {sorted.map((t, i) => (
           <Row key={t.symbol} ticker={t} rank={i + 1}
-            chartProbeRef={i === 0 ? setChartEl : null} />
+            chartProbeRef={i === 0 ? setChartEl : null}
+            enduranceMax={enduranceMax} />
         ))}
       </ol>
 
@@ -255,7 +267,7 @@ function Legend() {
 // One leaderboard row: rank + symbol/name + scrubbable barcode +
 // permanent-share bar + drawdown indicator.
 // ─────────────────────────────────────────────────────────────
-function Row({ ticker, rank, chartProbeRef }) {
+function Row({ ticker, rank, chartProbeRef, enduranceMax }) {
   const levels = useMemo(
     () => athLevels(ticker).filter(l => dateToAxis(l.date) >= 0),
     [ticker],
@@ -290,10 +302,10 @@ function Row({ ticker, rank, chartProbeRef }) {
   }
 
   const active = hover?.a || null
-  const avgDays = ticker.stats.avgPermAthAgeDays
-  const avgYears = avgDays != null ? avgDays / 365.25 : null
-  const permCount = ticker.stats.permAthCount
-  const ageBarPct = avgYears != null ? Math.min(100, (avgYears / AXIS_YEARS) * 100) : 0
+  const endurance = useMemo(() => permEnduranceYears(ticker), [ticker])
+  const enduranceBarPct = enduranceMax > 0
+    ? Math.min(100, (endurance.totalYears / enduranceMax) * 100)
+    : 0
 
   return (
     <li className="row">
@@ -353,14 +365,18 @@ function Row({ ticker, rank, chartProbeRef }) {
       <div className="row-pct">
         <div className="pct-bar">
           <div className="pct-track">
-            <div className="pct-fill" style={{ width: `${ageBarPct}%` }} />
+            <div className="pct-fill" style={{ width: `${enduranceBarPct}%` }} />
           </div>
-          <span className="pct-num">{avgYears != null ? `${avgYears.toFixed(1)}y` : '—'}</span>
+          <span className="pct-num">
+            {endurance.totalYears >= 1
+              ? `${Math.round(endurance.totalYears).toLocaleString('en-US')}y`
+              : '—'}
+          </span>
         </div>
         <div className="pct-cap">
-          {permCount > 0
-            ? `avg age of ${permCount} unbroken ATH${permCount === 1 ? '' : 's'}`
-            : 'no unbroken ATHs'}
+          {endurance.count > 0
+            ? `${endurance.count} unbroken ATH${endurance.count === 1 ? '' : 's'} · ${endurance.avgYears.toFixed(1)}y avg`
+            : 'no unbroken ATHs in window'}
         </div>
       </div>
     </li>
@@ -453,9 +469,9 @@ function Methodology({ generatedAt, tickerCount }) {
         </li>
         <li>
           A close is a <strong>permanent floor</strong> if no later close was at-or-below it.
-          The "avg years unbroken" column averages the age of those still-standing ATHs — so a
-          recent IPO whose every peak has held for two years scores lower than a name whose
-          peaks from a decade ago are still intact.
+          The "ATH endurance" column <em>sums</em> the ages of every still-standing ATH that
+          falls inside the visible window — so a stock with one ancient unbroken peak from
+          before the window doesn't beat a name whose dozens of recent peaks have all held.
         </li>
         <li>
           Every row shares the same horizontal axis: the last {AXIS_YEARS} years, ending today (dashed vertical line).

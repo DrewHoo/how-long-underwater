@@ -29,6 +29,34 @@ export function athLevels(t) {
 // background timeline need this fraction to line up.
 export const AXIS_INSET_FRAC = 12 / 840
 
+// "ATH endurance" — total ATH-years of still-standing peaks that sit inside
+// the visible window. A stock with one ancient unbroken peak from 40 years
+// ago contributes 0; a stock with 40 unbroken peaks averaging 20 years old
+// contributes ~800. Cached per ticker reference.
+const _enduranceCache = new WeakMap()
+export function permEnduranceYears(t) {
+  const cached = _enduranceCache.get(t)
+  if (cached) return cached
+  let totalDays = 0
+  let count = 0
+  for (let k = 0; k < t.athRecov.length; k++) {
+    if (t.athRecov[k] != null) continue
+    const dateStr = t.dates[t.athIdx[k]]
+    const frac = dateToAxis(dateStr)
+    if (frac < 0 || frac > 1) continue
+    totalDays += (AXIS_END_MS - Date.parse(dateStr)) / 86400000
+    count++
+  }
+  const totalYears = totalDays / 365.25
+  const result = {
+    totalYears,
+    count,
+    avgYears: count > 0 ? totalYears / count : 0,
+  }
+  _enduranceCache.set(t, result)
+  return result
+}
+
 export function nowPct(t) {
   return t.stats.lastClose / t.stats.athClose
 }
