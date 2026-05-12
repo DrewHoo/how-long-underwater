@@ -175,6 +175,7 @@ main { max-width: 1320px; margin: 0 auto; padding: 36px 32px 80px; position: rel
   background: var(--red);
 }
 .pct-num { font-weight: 700; color: var(--ink); font-size: 12px; }
+.pct-suffix { font-weight: 400; color: var(--ink-soft); font-size: 10px; margin-left: 2px; }
 .pct-cap { margin-top: 3px; }
 
 /* ─── Tooltip ──────────────────────────────────────────────── */

@@ -75,23 +75,23 @@ const svg = `
   </text>
 
   <!-- Headline (serif italic emulated via system serif) -->
-  <text x="60" y="240" font-family="'DM Serif Display', Didot, 'Bodoni MT', Garamond, 'Times New Roman', serif"
-    font-size="118" fill="${INK}" font-style="italic" letter-spacing="-2">
-    How long
+  <text x="60" y="230" font-family="'DM Serif Display', Didot, 'Bodoni MT', Garamond, 'Times New Roman', serif"
+    font-size="64" fill="${INK}" font-style="italic" letter-spacing="-1">
+    Should You Buy
   </text>
-  <text x="60" y="350" font-family="'DM Serif Display', Didot, 'Bodoni MT', Garamond, 'Times New Roman', serif"
-    font-size="118" fill="${RED}" font-style="italic" letter-spacing="-2">
-    underwater?
+  <text x="60" y="298" font-family="'DM Serif Display', Didot, 'Bodoni MT', Garamond, 'Times New Roman', serif"
+    font-size="64" fill="${RED}" font-style="italic" letter-spacing="-1">
+    an All-Time High?
   </text>
 
   <!-- Subhead -->
-  <text x="60" y="420" font-family="'DM Serif Display', Didot, 'Bodoni MT', Garamond, 'Times New Roman', serif"
-    font-size="30" fill="${INK}" font-style="italic">
-    Every all-time high, colored by how long
+  <text x="60" y="380" font-family="'DM Serif Display', Didot, 'Bodoni MT', Garamond, 'Times New Roman', serif"
+    font-size="26" fill="${INK}" font-style="italic">
+    Sometimes yes; sometimes brutally
   </text>
-  <text x="60" y="460" font-family="'DM Serif Display', Didot, 'Bodoni MT', Garamond, 'Times New Roman', serif"
-    font-size="30" fill="${INK}" font-style="italic">
-    you'd have stayed underwater.
+  <text x="60" y="416" font-family="'DM Serif Display', Didot, 'Bodoni MT', Garamond, 'Times New Roman', serif"
+    font-size="26" fill="${INK}" font-style="italic">
+    no — colored by recovery time.
   </text>
 
   <!-- Footer (corpus) -->

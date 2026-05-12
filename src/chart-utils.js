@@ -29,31 +29,27 @@ export function athLevels(t) {
 // background timeline need this fraction to line up.
 export const AXIS_INSET_FRAC = 12 / 840
 
-// "ATH endurance" — total ATH-years of still-standing peaks that sit inside
-// the visible window. A stock with one ancient unbroken peak from 40 years
-// ago contributes 0; a stock with 40 unbroken peaks averaging 20 years old
-// contributes ~800. Cached per ticker reference.
-const _enduranceCache = new WeakMap()
-export function permEnduranceYears(t) {
-  const cached = _enduranceCache.get(t)
+// Per-ticker stats restricted to the visible window. Cached per ticker.
+const _windowedCache = new WeakMap()
+export function windowedAthStats(t) {
+  const cached = _windowedCache.get(t)
   if (cached) return cached
-  let totalDays = 0
-  let count = 0
-  for (let k = 0; k < t.athRecov.length; k++) {
-    if (t.athRecov[k] != null) continue
-    const dateStr = t.dates[t.athIdx[k]]
-    const frac = dateToAxis(dateStr)
+  let athCount = 0
+  let permCount = 0
+  for (let k = 0; k < t.athIdx.length; k++) {
+    const frac = dateToAxis(t.dates[t.athIdx[k]])
     if (frac < 0 || frac > 1) continue
-    totalDays += (AXIS_END_MS - Date.parse(dateStr)) / 86400000
-    count++
+    athCount++
+    if (t.athRecov[k] == null) permCount++
   }
-  const totalYears = totalDays / 365.25
-  const result = {
-    totalYears,
-    count,
-    avgYears: count > 0 ? totalYears / count : 0,
-  }
-  _enduranceCache.set(t, result)
+  // Years of history the ticker actually has inside the window. A 5-year-old
+  // ETF gets credited with 5 years (not 30), so ATHs-per-year is honest.
+  const firstMs = Date.parse(t.dates[0])
+  const effectiveStartMs = Math.max(AXIS_START_MS, firstMs)
+  const yearsInWindow = Math.max(0.25, (AXIS_END_MS - effectiveStartMs) / (365.25 * 86400000))
+  const athsPerYear = athCount / yearsInWindow
+  const result = { athCount, permCount, athsPerYear, yearsInWindow }
+  _windowedCache.set(t, result)
   return result
 }
 

@@ -1,8 +1,8 @@
-# How long underwater?
+# Should You Buy an All-Time High?
 
-Every closing-price all-time high for 200+ tickers, each on its own
-per-ticker log-price axis, colored by **how many trading days the price
-stayed at-or-below it afterward**.
+Every closing-price all-time high for 200+ tickers, plotted on a shared
+30-year timeline, colored by **how many trading days the price stayed
+at-or-below it afterward**.
 
 - Green ticks → permanent ATH, never undercut (the buys-of-a-lifetime)
 - Olive → a brief blip below, recovered quickly

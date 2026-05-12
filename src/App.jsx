@@ -2,7 +2,7 @@ import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 're
 import {
   athLevels, colorByTime, COLOR,
   AXIS_END_MS, AXIS_YEARS, AXIS_INSET_FRAC, dateToAxis,
-  permEnduranceYears,
+  windowedAthStats,
 } from './chart-utils.js'
 
 function formatTimeSince(dateStr) {
@@ -38,18 +38,6 @@ function formatAnnual(level) {
 }
 
 const BASE = import.meta.env.BASE_URL
-
-// Default "featured" surface: long-history names that anchor the chart and
-// give scrollers an immediate read on the time-axis story. TSLA is in here
-// because its red, never-recovered ATH bar is funny.
-const FEATURED = [
-  'SPY', 'QQQ',
-  'NVDA', 'AAPL', 'MSFT', 'AMZN', 'GOOG', 'META',
-  'TSLA',
-  'SMH', 'SOXQ',
-  'BTC-USD',
-]
-const FEATURED_RANK = new Map(FEATURED.map((s, i) => [s, i]))
 
 // ─────────────────────────────────────────────────────────────
 // Top-level: loads index.json, then fetches every ticker's
@@ -112,22 +100,30 @@ export default function App() {
 function Mast() {
   return (
     <header className="mast">
-      <div className="mast-title">How long <em>underwater?</em></div>
-      <div className="mast-sub">every all-time high, colored by how long you'd have stayed underwater</div>
+      <div className="mast-title">Should You Buy <em>an All-Time High?</em></div>
+      <div className="mast-sub">every closing all-time high, colored by how long buyers stayed underwater</div>
     </header>
   )
 }
 
-// Sort key → sign multiplier. -1 = descending (default); 1 = ascending
-// (for "at ATH" we want the smallest pctOffAth first).
-const SORT_DIR = {
-  permAthCount: -1,
-  pctOffAth: 1,
+// All sort options pull from windowedAthStats and rank descending.
+function rowMetric(t, sortKey) {
+  const w = windowedAthStats(t)
+  if (sortKey === 'permCount') {
+    return { value: w.permCount, big: w.permCount.toLocaleString('en-US'), suffix: 'unbroken',
+      cap: `${w.athCount.toLocaleString('en-US')} ATHs · ${w.athsPerYear.toFixed(1)}/yr` }
+  }
+  if (sortKey === 'athsPerYear') {
+    return { value: w.athsPerYear, big: w.athsPerYear.toFixed(1), suffix: '/yr',
+      cap: `${w.athCount.toLocaleString('en-US')} ATHs · ${w.permCount} unbroken` }
+  }
+  return { value: w.athCount, big: w.athCount.toLocaleString('en-US'), suffix: 'ATHs',
+    cap: `${w.permCount} unbroken · ${w.athsPerYear.toFixed(1)}/yr` }
 }
 
 function Leaderboard({ tickers, generatedAt }) {
   const [filter, setFilter] = useState('all')
-  const [sortKey, setSortKey] = useState('featured')
+  const [sortKey, setSortKey] = useState('athCount')
   const [chartEl, setChartEl] = useState(null)
   const [chartBounds, setChartBounds] = useState(null)
 
@@ -154,30 +150,18 @@ function Leaderboard({ tickers, generatedAt }) {
 
   const sorted = useMemo(() => {
     const arr = [...filtered]
-    if (sortKey === 'featured') {
-      arr.sort((a, b) => {
-        const A = FEATURED_RANK.has(a.symbol) ? FEATURED_RANK.get(a.symbol) : Infinity
-        const B = FEATURED_RANK.has(b.symbol) ? FEATURED_RANK.get(b.symbol) : Infinity
-        if (A !== B) return A - B
-        return permEnduranceYears(b).totalYears - permEnduranceYears(a).totalYears
-      })
-    } else if (sortKey === 'endurance') {
-      arr.sort((a, b) => permEnduranceYears(b).totalYears - permEnduranceYears(a).totalYears)
-    } else {
-      const dir = SORT_DIR[sortKey] ?? -1
-      arr.sort((a, b) => dir * ((a.stats[sortKey] ?? 0) - (b.stats[sortKey] ?? 0)))
-    }
+    arr.sort((a, b) => rowMetric(b, sortKey).value - rowMetric(a, sortKey).value)
     return arr
   }, [filtered, sortKey])
 
-  const enduranceMax = useMemo(() => {
+  const metricMax = useMemo(() => {
     let max = 0
     for (const t of sorted) {
-      const e = permEnduranceYears(t).totalYears
-      if (e > max) max = e
+      const v = rowMetric(t, sortKey).value
+      if (v > max) max = v
     }
     return max
-  }, [sorted])
+  }, [sorted, sortKey])
 
   return (
     <main>
@@ -186,9 +170,9 @@ function Leaderboard({ tickers, generatedAt }) {
 
       <section className="lede-row">
         <p className="lede">
-          Every closing-price all-time high in {tickers.length} tickers, plotted on a shared {AXIS_YEARS}-year timeline.
-          Green ticks were never undercut — those are the buys-of-a-lifetime.
-          Red ticks left buyers underwater for years; the dot-com cluster around 2000 should be obvious.
+          Sometimes yes — green ticks below were never undercut, so a buyer at that peak got in at a permanent floor.
+          Sometimes brutally no — red ticks left buyers underwater for years (the 2000 dot-com cluster is hard to miss).
+          Every closing-price all-time high in {tickers.length} tickers, on a shared {AXIS_YEARS}-year timeline.
           Tap or hover any row to scrub the ladder.
         </p>
         <Legend />
@@ -208,10 +192,9 @@ function Leaderboard({ tickers, generatedAt }) {
         <div className="seg seg--right">
           <span className="seg-label">sort</span>
           {[
-            ['featured', 'featured'],
-            ['endurance', 'ATH endurance'],
-            ['permAthCount', 'most ATHs never undercut'],
-            ['pctOffAth', 'at ATH'],
+            ['athCount', 'most all-time highs'],
+            ['permCount', 'most unbroken all-time highs'],
+            ['athsPerYear', 'most all-time highs per year'],
           ].map(([v, l]) => (
             <button key={v} className={`seg-btn ${sortKey === v ? 'is-active' : ''}`} onClick={() => setSortKey(v)}>
               {l}
@@ -224,7 +207,7 @@ function Leaderboard({ tickers, generatedAt }) {
         {sorted.map((t, i) => (
           <Row key={t.symbol} ticker={t} rank={i + 1}
             chartProbeRef={i === 0 ? setChartEl : null}
-            enduranceMax={enduranceMax} />
+            sortKey={sortKey} metricMax={metricMax} />
         ))}
       </ol>
 
@@ -267,7 +250,7 @@ function Legend() {
 // One leaderboard row: rank + symbol/name + scrubbable barcode +
 // permanent-share bar + drawdown indicator.
 // ─────────────────────────────────────────────────────────────
-function Row({ ticker, rank, chartProbeRef, enduranceMax }) {
+function Row({ ticker, rank, chartProbeRef, sortKey, metricMax }) {
   const levels = useMemo(
     () => athLevels(ticker).filter(l => dateToAxis(l.date) >= 0),
     [ticker],
@@ -302,10 +285,8 @@ function Row({ ticker, rank, chartProbeRef, enduranceMax }) {
   }
 
   const active = hover?.a || null
-  const endurance = useMemo(() => permEnduranceYears(ticker), [ticker])
-  const enduranceBarPct = enduranceMax > 0
-    ? Math.min(100, (endurance.totalYears / enduranceMax) * 100)
-    : 0
+  const metric = rowMetric(ticker, sortKey)
+  const barPct = metricMax > 0 ? Math.min(100, (metric.value / metricMax) * 100) : 0
 
   return (
     <li className="row">
@@ -365,19 +346,11 @@ function Row({ ticker, rank, chartProbeRef, enduranceMax }) {
       <div className="row-pct">
         <div className="pct-bar">
           <div className="pct-track">
-            <div className="pct-fill" style={{ width: `${enduranceBarPct}%` }} />
+            <div className="pct-fill" style={{ width: `${barPct}%` }} />
           </div>
-          <span className="pct-num">
-            {endurance.totalYears >= 1
-              ? `${Math.round(endurance.totalYears).toLocaleString('en-US')}y`
-              : '—'}
-          </span>
+          <span className="pct-num">{metric.big} <span className="pct-suffix">{metric.suffix}</span></span>
         </div>
-        <div className="pct-cap">
-          {endurance.count > 0
-            ? `${endurance.count} unbroken ATH${endurance.count === 1 ? '' : 's'} · ${endurance.avgYears.toFixed(1)}y avg`
-            : 'no unbroken ATHs in window'}
-        </div>
+        <div className="pct-cap">{metric.cap}</div>
       </div>
     </li>
   )
@@ -468,10 +441,11 @@ function Methodology({ generatedAt, tickerCount }) {
           few flavors of bitcoin. Daily prices are <strong>split- and dividend-adjusted closes</strong> from Yahoo Finance.
         </li>
         <li>
-          A close is a <strong>permanent floor</strong> if no later close was at-or-below it.
-          The "ATH endurance" column <em>sums</em> the ages of every still-standing ATH that
-          falls inside the visible window — so a stock with one ancient unbroken peak from
-          before the window doesn't beat a name whose dozens of recent peaks have all held.
+          A close is a <strong>permanent floor</strong> if no later close was at-or-below it. Sorts:
+          "most all-time highs" by total ATH count in the visible window;
+          "most unbroken" by permanent-floor count; and
+          "most all-time highs per year" by count divided by the ticker's years of history in the window
+          (so a 4-year-old ETF with 80 ATHs can outscore a 30-year-old name with 600).
         </li>
         <li>
           Every row shares the same horizontal axis: the last {AXIS_YEARS} years, ending today (dashed vertical line).
