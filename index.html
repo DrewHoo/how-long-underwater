@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>How long underwater? — every all-time high, colored by recovery time</title>
+    <meta name="description" content="Every closing-price all-time high for 200+ tickers, each on its own log-price axis, colored by how many trading days the price stayed at-or-below it afterward. Hover any row to scrub the ladder of peaks." />
+
+    <link rel="icon" type="image/svg+xml" href="/how-long-underwater/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/how-long-underwater/favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/how-long-underwater/favicon-192.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/how-long-underwater/apple-touch-icon.png" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="How long underwater?" />
+    <meta property="og:title" content="How long underwater? — every ATH, colored by recovery time" />
+    <meta property="og:description" content="Every closing-price all-time high in 200+ tickers, each on its own log-price axis, colored by how long the price stayed underwater. Nasdaq 100 + S&P 100, tech ETFs, gold, BTC." />
+    <meta property="og:url" content="https://drewhoover.com/how-long-underwater/" />
+    <meta property="og:image" content="https://drewhoover.com/how-long-underwater/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="A stylized leaderboard row of all-time-high ticks, colored from green (never undercut) through amber to deep red (a decade underwater)." />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="How long underwater? — every ATH, colored by recovery time" />
+    <meta name="twitter:description" content="Every closing-price all-time high in 200+ tickers, colored by how long the price stayed underwater afterward." />
+    <meta name="twitter:image" content="https://drewhoover.com/how-long-underwater/og.png" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet" />
+
+    <script src="https://drewhoover.com/embed/back-bar.js" async></script>
+    <script src="https://drewhoover.com/embed/giscus.js" async></script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <div id="comments"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
