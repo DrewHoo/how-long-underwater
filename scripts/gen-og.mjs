@@ -37,21 +37,25 @@ const COLOR = {
 // of an ATH grows toward the right; older ones tend to be permanent
 // (green), recent ones are still underwater (red). This is the shape
 // the real charts hint at over and over.
+// Coords are in chart-local space: the chart group is translated by
+// (22, 130) inside the 500-wide card, so everything here must stay
+// roughly within 0..456 to avoid spilling past the card's right edge.
 const ticks = [
-  { x:  20, c: COLOR.victory,  half: 22 },
-  { x:  60, c: COLOR.victory,  half: 22 },
-  { x: 100, c: COLOR.victory,  half: 22 },
-  { x: 145, c: COLOR.safe,     half: 18 },
-  { x: 190, c: COLOR.safe,     half: 18 },
-  { x: 235, c: COLOR.meh,      half: 18 },
-  { x: 285, c: COLOR.meh,      half: 18 },
-  { x: 335, c: COLOR.scary,    half: 18 },
-  { x: 385, c: COLOR.scary,    half: 18 },
-  { x: 430, c: COLOR.disaster, half: 24 },
-  { x: 470, c: COLOR.disaster, half: 24 },
-  { x: 505, c: COLOR.disaster, half: 24 },
+  { x:  18, c: COLOR.victory,  half: 22 },
+  { x:  53, c: COLOR.victory,  half: 22 },
+  { x:  88, c: COLOR.victory,  half: 22 },
+  { x: 128, c: COLOR.safe,     half: 18 },
+  { x: 168, c: COLOR.safe,     half: 18 },
+  { x: 207, c: COLOR.meh,      half: 18 },
+  { x: 251, c: COLOR.meh,      half: 18 },
+  { x: 295, c: COLOR.scary,    half: 18 },
+  { x: 340, c: COLOR.scary,    half: 18 },
+  { x: 379, c: COLOR.disaster, half: 24 },
+  { x: 415, c: COLOR.disaster, half: 24 },
+  { x: 445, c: COLOR.disaster, half: 24 },
 ]
-const NOW_X = 530
+const AXIS_END = 450
+const NOW_X = 460
 
 const ticksSvg = ticks.map(t => `
   <line x1="${t.x}" x2="${t.x}" y1="${-t.half}" y2="${t.half}"
@@ -117,7 +121,7 @@ const svg = `
 
     <!-- chart row -->
     <g transform="translate(22, 130)">
-      <line x1="-4" x2="${510}" y1="0" y2="0" stroke="${INK}" stroke-width="1.4"/>
+      <line x1="-4" x2="${AXIS_END}" y1="0" y2="0" stroke="${INK}" stroke-width="1.4"/>
       ${ticksSvg}
       <!-- today marker -->
       <line x1="${NOW_X}" x2="${NOW_X}" y1="-26" y2="26"
