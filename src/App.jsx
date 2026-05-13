@@ -39,6 +39,60 @@ function formatAnnual(level) {
 
 const BASE = import.meta.env.BASE_URL
 
+// Popular tickers, in display order, surfaced by the default "featured" sort.
+// Hand-curated rather than algorithmic so the landing view tells a coherent
+// "shared 30-year timeline" story (indexes, Mag 7, semis, BTC).
+const FEATURED = [
+  'SPY', 'QQQ', 'VOO', 'DIA', 'IWM',
+  'AAPL', 'MSFT', 'GOOGL', 'GOOG', 'AMZN', 'META', 'NVDA', 'TSLA',
+  'NFLX', 'AMD', 'AVGO', 'ORCL',
+  'XLK', 'SMH', 'SOXX',
+  'GLD',
+  'BTC-USD',
+]
+const FEATURED_RANK = new Map(FEATURED.map((s, i) => [s, i]))
+
+const VALID_FILTERS = new Set(['all', 'stock', 'etf', 'commodity', 'crypto'])
+const VALID_SORTS = new Set(['featured', 'athCount', 'permCount', 'athsPerYear'])
+
+function readUrlState() {
+  if (typeof window === 'undefined') return { filter: 'all', sortKey: 'featured', query: '' }
+  const u = new URLSearchParams(window.location.search)
+  const filter = u.get('cat')
+  const sort = u.get('sort')
+  return {
+    filter: VALID_FILTERS.has(filter) ? filter : 'all',
+    sortKey: VALID_SORTS.has(sort) ? sort : 'featured',
+    query: u.get('q') || '',
+  }
+}
+
+function writeUrlState({ filter, sortKey, query }) {
+  const u = new URLSearchParams()
+  if (filter && filter !== 'all') u.set('cat', filter)
+  if (sortKey && sortKey !== 'featured') u.set('sort', sortKey)
+  if (query) u.set('q', query)
+  const qs = u.toString()
+  const path = window.location.pathname + (qs ? `?${qs}` : '')
+  window.history.replaceState(null, '', path + window.location.hash)
+}
+
+function useIsMobile() {
+  const [is, setIs] = useState(() =>
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 800px)').matches)
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 800px)')
+    const update = () => setIs(mq.matches)
+    if (mq.addEventListener) mq.addEventListener('change', update)
+    else mq.addListener(update)
+    return () => {
+      if (mq.removeEventListener) mq.removeEventListener('change', update)
+      else mq.removeListener(update)
+    }
+  }, [])
+  return is
+}
+
 // ─────────────────────────────────────────────────────────────
 // Top-level: loads index.json, then fetches every ticker's
 // detail file in parallel. Shows a progress count while loading.
@@ -106,26 +160,37 @@ function Mast() {
   )
 }
 
-// All sort options pull from windowedAthStats and rank descending.
+// All non-featured sort options pull from windowedAthStats and rank descending.
+// Featured falls through to the athCount display so the badge still says
+// something useful in that mode.
 function rowMetric(t, sortKey) {
   const w = windowedAthStats(t)
   if (sortKey === 'permCount') {
-    return { value: w.permCount, big: w.permCount.toLocaleString('en-US'), suffix: 'unbroken',
+    return { value: w.permCount, big: w.permCount.toLocaleString('en-US'), suffix: 'never undercut',
       cap: `${w.athCount.toLocaleString('en-US')} ATHs · ${w.athsPerYear.toFixed(1)}/yr` }
   }
   if (sortKey === 'athsPerYear') {
-    return { value: w.athsPerYear, big: w.athsPerYear.toFixed(1), suffix: '/yr',
+    return { value: w.athsPerYear, big: w.athsPerYear.toFixed(1), suffix: 'ATHs/yr',
       cap: `${w.athCount.toLocaleString('en-US')} ATHs · ${w.permCount} unbroken` }
   }
   return { value: w.athCount, big: w.athCount.toLocaleString('en-US'), suffix: 'ATHs',
     cap: `${w.permCount} unbroken · ${w.athsPerYear.toFixed(1)}/yr` }
 }
 
+function featuredRank(symbol) {
+  return FEATURED_RANK.has(symbol) ? FEATURED_RANK.get(symbol) : Infinity
+}
+
 function Leaderboard({ tickers, generatedAt }) {
-  const [filter, setFilter] = useState('all')
-  const [sortKey, setSortKey] = useState('athCount')
+  const initial = useMemo(readUrlState, [])
+  const [filter, setFilter] = useState(initial.filter)
+  const [sortKey, setSortKey] = useState(initial.sortKey)
+  const [query, setQuery] = useState(initial.query)
   const [chartEl, setChartEl] = useState(null)
   const [chartBounds, setChartBounds] = useState(null)
+  const isMobile = useIsMobile()
+
+  useEffect(() => { writeUrlState({ filter, sortKey, query }) }, [filter, sortKey, query])
 
   useLayoutEffect(() => {
     if (!chartEl) return
@@ -144,24 +209,38 @@ function Leaderboard({ tickers, generatedAt }) {
   }, [chartEl])
 
   const filtered = useMemo(() => {
-    if (filter === 'all') return tickers
-    return tickers.filter(t => t.category === filter)
-  }, [tickers, filter])
+    const q = query.trim().toLowerCase()
+    return tickers.filter(t => {
+      if (filter !== 'all' && t.category !== filter) return false
+      if (!q) return true
+      return t.symbol.toLowerCase().includes(q) || (t.name || '').toLowerCase().includes(q)
+    })
+  }, [tickers, filter, query])
 
   const sorted = useMemo(() => {
     const arr = [...filtered]
-    arr.sort((a, b) => rowMetric(b, sortKey).value - rowMetric(a, sortKey).value)
+    if (sortKey === 'featured') {
+      arr.sort((a, b) => {
+        const ra = featuredRank(a.symbol), rb = featuredRank(b.symbol)
+        if (ra !== rb) return ra - rb
+        // Anything not in FEATURED falls back to athCount descending.
+        return rowMetric(b, 'athCount').value - rowMetric(a, 'athCount').value
+      })
+    } else {
+      arr.sort((a, b) => rowMetric(b, sortKey).value - rowMetric(a, sortKey).value)
+    }
     return arr
   }, [filtered, sortKey])
 
+  const displayKey = sortKey === 'featured' ? 'athCount' : sortKey
   const metricMax = useMemo(() => {
     let max = 0
     for (const t of sorted) {
-      const v = rowMetric(t, sortKey).value
+      const v = rowMetric(t, displayKey).value
       if (v > max) max = v
     }
     return max
-  }, [sorted, sortKey])
+  }, [sorted, displayKey])
 
   return (
     <main>
@@ -170,7 +249,7 @@ function Leaderboard({ tickers, generatedAt }) {
 
       <section className="lede-row">
         <p className="lede">
-          Sometimes yes — green ticks below were never undercut, so a buyer at that peak got in at a permanent floor.
+          Sometimes yes — green ticks below haven't been undercut yet, so a buyer at that peak got in at what is (so far!) a permanent floor.
           Sometimes brutally no — red ticks left buyers underwater for years (the 2000 dot-com cluster is hard to miss).
           Every closing-price all-time high in {tickers.length} tickers, on a shared {AXIS_YEARS}-year timeline.
           Tap or hover any row to scrub the ladder.
@@ -189,12 +268,26 @@ function Leaderboard({ tickers, generatedAt }) {
             </button>
           ))}
         </div>
+        <div className="search">
+          <input
+            type="search"
+            className="search-input"
+            placeholder="Search ticker or name…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            aria-label="Search ticker or name"
+          />
+          {query && (
+            <button className="search-clear" onClick={() => setQuery('')} aria-label="Clear search">×</button>
+          )}
+        </div>
         <div className="seg seg--right">
           <span className="seg-label">sort</span>
           {[
-            ['athCount', 'most all-time highs'],
-            ['permCount', 'most unbroken all-time highs'],
-            ['athsPerYear', 'most all-time highs per year'],
+            ['featured', 'featured'],
+            ['athCount', 'most ATHs'],
+            ['permCount', 'ATHs that were never undercut'],
+            ['athsPerYear', 'most ATHs per year'],
           ].map(([v, l]) => (
             <button key={v} className={`seg-btn ${sortKey === v ? 'is-active' : ''}`} onClick={() => setSortKey(v)}>
               {l}
@@ -203,11 +296,16 @@ function Leaderboard({ tickers, generatedAt }) {
         </div>
       </section>
 
+      {sorted.length === 0 && (
+        <p className="empty">No tickers match “{query}”.</p>
+      )}
+
       <ol className="board">
         {sorted.map((t, i) => (
           <Row key={t.symbol} ticker={t} rank={i + 1}
             chartProbeRef={i === 0 ? setChartEl : null}
-            sortKey={sortKey} metricMax={metricMax} />
+            sortKey={displayKey} metricMax={metricMax}
+            isMobile={isMobile} />
         ))}
       </ol>
 
@@ -218,7 +316,7 @@ function Leaderboard({ tickers, generatedAt }) {
 
 function Legend() {
   const items = [
-    [COLOR.victory,  'permanent — never undercut'],
+    [COLOR.victory,  'never undercut (so far!)'],
     [COLOR.short,    '≤ 3 months at-or-below'],
     [COLOR.safe,     '3–6 months'],
     [COLOR.meh,      '6–12 months'],
@@ -250,7 +348,7 @@ function Legend() {
 // One leaderboard row: rank + symbol/name + scrubbable barcode +
 // permanent-share bar + drawdown indicator.
 // ─────────────────────────────────────────────────────────────
-function Row({ ticker, rank, chartProbeRef, sortKey, metricMax }) {
+function Row({ ticker, rank, chartProbeRef, sortKey, metricMax, isMobile }) {
   const levels = useMemo(
     () => athLevels(ticker).filter(l => dateToAxis(l.date) >= 0),
     [ticker],
@@ -281,7 +379,7 @@ function Row({ ticker, rank, chartProbeRef, sortKey, metricMax }) {
     const a = nearestByAxis(axisPos)
     if (!a) return
     const xLocal = Math.max(0, Math.min(1, dateToAxis(a.date))) * rect.width
-    setHover({ axisPos, xLocal, a })
+    setHover({ axisPos, xLocal, a, chartW: rect.width })
   }
 
   const active = hover?.a || null
@@ -340,7 +438,9 @@ function Row({ ticker, rank, chartProbeRef, sortKey, metricMax }) {
           <Tooltip ticker={ticker} level={active}
             x={hover.xLocal}
             y={yMid}
-            side={hover.axisPos > 0.6 ? 'left' : 'right'} />
+            chartW={hover.chartW}
+            side={hover.axisPos > 0.6 ? 'left' : 'right'}
+            placement={isMobile ? 'above' : 'side'} />
         )}
       </div>
       <div className="row-pct">
@@ -356,11 +456,26 @@ function Row({ ticker, rank, chartProbeRef, sortKey, metricMax }) {
   )
 }
 
-function Tooltip({ ticker, level, x, y, side }) {
+function Tooltip({ ticker, level, x, y, side, placement = 'side', chartW }) {
   if (!level) return null
-  const W = 230
+  const above = placement === 'above'
+  const W = above ? 220 : 230
   const offset = 12
-  const leftPx = side === 'right' ? x + offset : x - W - offset
+  // When floating above on mobile, clamp the horizontal anchor so the
+  // tooltip stays inside the chart instead of escaping the right/left edge.
+  let style
+  if (above) {
+    const pad = 6
+    const cw = chartW || W
+    const effW = Math.min(W, cw - pad * 2)
+    const half = effW / 2
+    const minX = half + pad
+    const maxX = cw - half - pad
+    const anchorX = minX > maxX ? cw / 2 : Math.max(minX, Math.min(maxX, x))
+    style = { left: anchorX, top: -8, width: effW, transform: 'translate(-50%, -100%)' }
+  } else {
+    style = { left: side === 'right' ? x + offset : x - W - offset, top: y, width: W, transform: 'translateY(-50%)' }
+  }
   const c = colorByTime(level)
   const yrs = level.buyable / 252
   const buy = formatThousandBuy(level)
@@ -368,7 +483,7 @@ function Tooltip({ ticker, level, x, y, side }) {
   if (level.perm) {
     detail = (
       <div className="t-row t-row--big" style={{ color: c }}>
-        not yet undercut — {formatTimeSince(level.date)}
+        not undercut yet (so far!) — {formatTimeSince(level.date)}
       </div>
     )
   } else {
@@ -385,7 +500,7 @@ function Tooltip({ ticker, level, x, y, side }) {
   }
   const annual = formatAnnual(level)
   return (
-    <div className="tip" style={{ top: y, left: leftPx, width: W }}>
+    <div className={`tip ${above ? 'tip--above' : ''}`} style={style}>
       <div className="t-eyebrow">{ticker.symbol} ATH</div>
       <div className="t-date">{level.date}</div>
       <div className="t-price">${level.price.toFixed(2)}</div>
@@ -441,10 +556,11 @@ function Methodology({ generatedAt, tickerCount }) {
           few flavors of bitcoin. Daily prices are <strong>split- and dividend-adjusted closes</strong> from Yahoo Finance.
         </li>
         <li>
-          A close is a <strong>permanent floor</strong> if no later close was at-or-below it. Sorts:
-          "most all-time highs" by total ATH count in the visible window;
-          "most unbroken" by permanent-floor count; and
-          "most all-time highs per year" by count divided by the ticker's years of history in the window
+          A close is a <strong>permanent floor</strong> if no later close was at-or-below it (so far!). Sorts:
+          "featured" pins popular indexes, the Mag 7, semis, and BTC up top;
+          "most ATHs" by total ATH count in the visible window;
+          "ATHs that were never undercut" by permanent-floor count; and
+          "most ATHs per year" by count divided by the ticker's years of history in the window
           (so a 4-year-old ETF with 80 ATHs can outscore a 30-year-old name with 600).
         </li>
         <li>
