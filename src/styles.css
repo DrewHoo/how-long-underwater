@@ -134,6 +134,47 @@ main { max-width: 1320px; margin: 0 auto; padding: 36px 32px 80px; position: rel
 .seg-btn:hover { color: var(--ink); }
 .seg-btn.is-active { background: var(--ink); color: var(--bg); }
 
+/* ─── Search ────────────────────────────────────────────────── */
+.search {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.search-input {
+  font: inherit;
+  font-size: 12px;
+  padding: 6px 26px 6px 10px;
+  border: 1px solid var(--ink);
+  background: var(--bg-card);
+  color: var(--ink);
+  outline: none;
+  min-width: 200px;
+}
+.search-input::placeholder { color: var(--ink-soft); }
+.search-input:focus { background: #fff; }
+.search-clear {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 18px;
+  height: 18px;
+  border: 0;
+  background: transparent;
+  color: var(--ink-soft);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 0;
+}
+.search-clear:hover { color: var(--ink); }
+
+.empty {
+  margin: 18px 0 8px;
+  font-style: italic;
+  color: var(--ink-soft);
+}
+
 /* ─── Leaderboard rows ─────────────────────────────────────── */
 .board {
   list-style: none; padding: 0; margin: 0;
@@ -181,7 +222,6 @@ main { max-width: 1320px; margin: 0 auto; padding: 36px 32px 80px; position: rel
 /* ─── Tooltip ──────────────────────────────────────────────── */
 .tip {
   position: absolute;
-  transform: translateY(-50%);
   background: var(--ink);
   color: var(--bg);
   padding: 8px 10px;
@@ -191,6 +231,16 @@ main { max-width: 1320px; margin: 0 auto; padding: 36px 32px 80px; position: rel
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
   pointer-events: none;
   z-index: 5;
+}
+.tip--above::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -6px;
+  transform: translateX(-50%);
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 6px solid var(--ink);
 }
 .t-eyebrow { font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.6; }
 .t-date { font-family: var(--serif); font-style: italic; font-size: 18px; margin-top: 2px; }
@@ -258,6 +308,8 @@ main { max-width: 1320px; margin: 0 auto; padding: 36px 32px 80px; position: rel
   .lede { font-size: 16px; }
 
   .controls { gap: 8px; }
+  .search { width: 100%; }
+  .search-input { width: 100%; min-width: 0; }
   .seg--right { margin-left: 0; width: 100%; }
   .seg--right .seg-btn { flex: 1; min-width: 0; }
   .seg--right .seg-label { padding: 0 6px; }
@@ -267,6 +319,12 @@ main { max-width: 1320px; margin: 0 auto; padding: 36px 32px 80px; position: rel
     line-height: 1.15;
     white-space: normal;
     word-break: keep-all;
+  }
+
+  /* Mobile tooltip floats above the row, centered on the active ATH, and
+     never escapes the viewport edges. */
+  .tip--above {
+    max-width: calc(100vw - 24px);
   }
 
   .row {
